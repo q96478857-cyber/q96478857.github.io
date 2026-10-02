@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเวนคืนและติดตามการยืมหนังสือห้องสมุดโรงเรียน (ใช้งานฟรี)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for Statistics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-receipt-area, #print-receipt-area * {
+                visibility: visible;
+            }
+            #print-receipt-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between shadow-xl z-20 shrink-0">
+        <div>
+            <!-- Library Logo & Title -->
+            <div class="p-5 border-b border-slate-800 flex items-center gap-3">
+                <div id="app-logo-container" class="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center text-slate-950 font-bold text-xl shadow shrink-0 overflow-hidden">
+                    <i class="fa-solid fa-book-bookmark" id="app-logo-icon"></i>
+                    <img id="app-logo-img" class="w-full h-full object-cover hidden" alt="School Logo" src="">
+                </div>
+                <div class="overflow-hidden">
+                    <h1 id="app-school-name" class="font-bold text-sm truncate text-amber-300">โรงเรียนของเรา</h1>
+                    <p id="app-lib-title" class="text-xs font-semibold text-slate-300 truncate">ระบบเวนคืนห้องสมุด</p>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="p-4 space-y-1.5">
+                <button onclick="switchTab('tab-return')" id="nav-return" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-xs transition-all bg-indigo-600 text-white shadow-sm">
+                    <i class="fa-solid fa-barcode text-base w-5"></i>
+                    <span>เวนคืน & ยืมหนังสือ</span>
+                </button>
+                <button onclick="switchTab('tab-dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-chart-pie text-base w-5"></i>
+                    <span>แผงควบคุม & สถิติจำนวน</span>
+                </button>
+                <button onclick="switchTab('tab-history')" id="nav-history" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-clock-rotate-left text-base w-5"></i>
+                    <span>ประวัติการรับเวนคืน</span>
+                </button>
+                <button onclick="switchTab('tab-books')" id="nav-books" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-books text-base w-5"></i>
+                    <span>คลังหนังสือ & สมาชิก</span>
+                </button>
+                <button onclick="switchTab('tab-settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-sliders text-base w-5"></i>
+                    <span>ตั้งค่าระบบ & โลโก้</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- System User & Free Info -->
+        <div class="p-4 border-t border-slate-800 bg-slate-950/80">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-white font-semibold text-xs shrink-0 shadow">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <p id="app-librarian-name" class="text-xs font-semibold truncate text-white">ครูบรรณารักษ์</p>
+                    <p class="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                        นับจำนวนเล่ม / ฟรี 100%
+                    </p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Container -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+
+        <!-- Top Header Navigation -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shrink-0 shadow-sm">
+            <div class="flex items-center gap-3">
+                <h2 id="page-title" class="text-lg font-bold text-slate-800">ระบบเวนคืนหนังสือ (Book Return)</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    พร้อมสแกนทำรายการ
+                </span>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-600">
+                <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <i class="fa-regular fa-calendar text-indigo-600"></i>
+                    <span id="current-date-display">-</span>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <i class="fa-regular fa-clock text-amber-600"></i>
+                    <span id="current-time-display">-</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Content Body -->
+        <main class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+
+            <!-- TAB 1: RETURN & BORROW BOOKS -->
+            <div id="tab-return" class="tab-content space-y-6">
+                <!-- Barcode & Search Scanner Box -->
+                <div class="bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl font-bold pointer-events-none">
+                        <i class="fa-solid fa-barcode"></i>
+                    </div>
+                    <div class="max-w-3xl relative z-10 space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="bg-indigo-500/40 text-indigo-100 text-xs px-3 py-1 rounded-full border border-indigo-400/30 font-medium">ระบบนับจำนวนเล่ม - ฟรี 100% (ไม่มีการคิดเงิน/ค่าปรับ)</span>
+                                <h3 class="text-xl font-bold mt-2">สแกนรหัสหนังสือ หรือ รหัสนักเรียน เพื่อทำรายการเวนคืน</h3>
+                                <p class="text-slate-300 text-xs">ใช้เครื่องสแกนบาร์โค้ด หรือพิมพ์รหัสหนังสือ/นักเรียน เพื่อค้นหารายการเล่มที่ยืมอยู่</p>
+                            </div>
+                            <button onclick="openBorrowModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0">
+                                <i class="fa-solid fa-plus-circle"></i>
+                                <span>+ ทำรายการยืมใหม่</span>
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="relative flex-1">
+                                <i class="fa-solid fa-barcode absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+                                <input type="text" id="scan-input" placeholder="พิมพ์รหัส เช่น BKS-1001 หรือ STU-6501" 
+                                       class="w-full pl-11 pr-4 py-3 rounded-xl text-slate-800 bg-white shadow-inner focus:outline-none focus:ring-4 focus:ring-amber-400 text-sm font-medium placeholder:text-slate-400"
+                                       onkeydown="if(event.key==='Enter') handleScanSearch()">
+                            </div>
+                            <button onclick="handleScanSearch()" class="px-6 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <span>ค้นหา</span>
+                            </button>
+                        </div>
+
+                        <!-- Customizable Quick Test Shortcuts Container -->
+                        <div class="pt-2 border-t border-slate-700/60">
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <span class="font-bold text-xs text-amber-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    ปุ่มสแกนด่วนตัวอย่าง (ปรับแต่ง / เพิ่ม / ลบ ได้เอง):
+                                </span>
+                                <div class="flex gap-1.5">
+                                    <button onclick="openQuickScanManagerModal()" class="text-[11px] bg-slate-700 hover:bg-slate-600 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-600 transition-all flex items-center gap-1">
+                                        <i class="fa-solid fa-gear"></i> จัดการปุ่มสแกนด่วน
+                                    </button>
+                                    <button onclick="clearSearchFilter()" class="text-[11px] bg-rose-900/60 hover:bg-rose-800 text-rose-200 px-2 py-1 rounded-lg border border-rose-700/50 transition-all">
+                                        แสดงทั้งหมด
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Injected Quick Scan Buttons -->
+                            <div id="quick-scan-buttons-list" class="flex flex-wrap items-center gap-2">
+                                <!-- Dynamic Render -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Borrowed Items Result Panel -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Borrower Student Info Card (Left) -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                                <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-id-card text-indigo-600"></i>
+                                    ข้อมูลผู้ยืมหนังสือ
+                                </h4>
+                                <span id="student-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">แสดงทั้งหมด</span>
+                            </div>
+                            
+                            <div id="student-detail-box" class="text-center py-6">
+                                <div class="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 text-2xl mb-3 border border-indigo-100 shadow-inner">
+                                    <i class="fa-solid fa-user-graduate"></i>
+                                </div>
+                                <p class="text-slate-600 font-semibold text-sm">แสดงรายการหนังสือที่ถูกยืมทั้งหมด</p>
+                                <p class="text-slate-400 text-xs mt-1">สแกนรหัสหนังสือหรือรหัสนักเรียนเพื่อค้นหาเฉพาะเจาะจง</p>
+                            </div>
+                        </div>
+
+                        <!-- Loan Rules Summary Preview -->
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2 mt-4">
+                            <div class="flex justify-between items-center text-xs text-slate-600">
+                                <span>ระยะเวลานำส่งคืน:</span>
+                                <span class="font-bold text-indigo-700" id="display-loan-days-info">14 วัน</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs text-slate-600">
+                                <span>โควตายืมสูงสุด:</span>
+                                <span class="font-bold text-slate-700" id="display-max-borrow-info">3 เล่ม / คน</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 pt-1 border-t border-slate-200">* ปรับเปลี่ยนได้ในเมนู "ตั้งค่าระบบ & โลโก้"</p>
+                        </div>
+                    </div>
+
+                    <!-- Borrowed Books List (Right - 2 Columns wide) -->
+                    <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                            <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-indigo-600"></i>
+                                รายการหนังสือที่อยู่ระหว่างการยืม (รอกระบวนการคืน)
+                            </h4>
+                            <span id="pending-count-badge" class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                                ยืมอยู่ทั้งหมด 0 เล่ม
+                            </span>
+                        </div>
+
+                        <!-- Dynamic List Container -->
+                        <div id="borrow-items-container" class="space-y-3 flex-1 overflow-y-auto max-h-[480px] pr-1 custom-scrollbar">
+                            <!-- Items injected via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: DASHBOARD & STATS -->
+            <div id="tab-dashboard" class="tab-content hidden space-y-6">
+                <!-- Stat Cards Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">เวนคืนสำเร็จวันนี้</p>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-1" id="stat-today-returns">0 เล่ม</h3>
+                            <span class="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                                <i class="fa-solid fa-check text-[10px]"></i> รับคืนเรียบร้อย
+                            </span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">อยู่ระหว่างการยืมทั้งหมด</p>
+                            <h3 class="text-2xl font-bold text-indigo-600 mt-1" id="stat-current-borrowed">0 เล่ม</h3>
+                            <span class="text-xs text-indigo-600 font-medium flex items-center gap-1 mt-1">
+                                <i class="fa-solid fa-book-reader text-[10px]"></i> ที่นักเรียนถืออยู่
+                            </span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-solid fa-book-open-reader"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">ยืมเกินกำหนด (ค้างคืน)</p>
+                            <h3 class="text-2xl font-bold text-amber-600 mt-1" id="stat-overdue-count">0 เล่ม</h3>
+                            <span class="text-xs text-amber-600 font-medium flex items-center gap-1 mt-1">
+                                <i class="fa-solid fa-triangle-exclamation text-[10px]"></i> ต้องติดตามการส่งคืน
+                            </span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">หนังสือในคลังทั้งหมด</p>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-1" id="stat-total-books">0 เล่ม</h3>
+                            <span class="text-xs text-slate-500 font-medium flex items-center gap-1 mt-1" id="stat-available-books">
+                                พร้อมให้ยืม 0 เล่ม
+                            </span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-solid fa-books"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Stats Adjustment Bar -->
+                <div class="bg-indigo-900 text-white p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center font-bold text-lg">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm">ปรับแต่งเป้าหมายการเวนคืน & ปรับตั้งค่าสถิติ</h4>
+                            <p class="text-xs text-indigo-200">คุณสามารถปรับแต่งเป้าหมายจำนวนเล่ม หรือปรับแต่งข้อมูลสถิติตามต้องการได้</p>
+                        </div>
+                    </div>
+                    <button onclick="openCustomStatsModal()" class="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>ปรับแต่งค่าสถิติ & เป้าหมาย</span>
+                    </button>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="font-bold text-slate-700 text-sm">สถิติจำนวนการเวนคืนหนังสือย้อนหลัง (เล่ม)</h4>
+                            <span class="text-xs text-slate-400">7 วันล่าสุด</span>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="returnChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="font-bold text-slate-700 text-sm">สัดส่วนสถานะหนังสือในระบบ</h4>
+                            <span class="text-xs text-slate-400">จำแนกตามสภาพ/สถานะ</span>
+                        </div>
+                        <div class="h-64 flex items-center justify-center">
+                            <canvas id="conditionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: RETURN HISTORY -->
+            <div id="tab-history" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between gap-4 items-center">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">ประวัติการรับเวนคืนหนังสือทั้งหมด (ปรับแต่ง/แก้ไข/ลบ ได้เอง)</h3>
+                            <p class="text-xs text-slate-500">บันทึกประวัติการส่งคืนหนังสือ สามารถเลือกแก้ไข เพิ่มรายการย้อนหลัง ลบ หรือพิมพ์ใบรับคืนได้</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                            <div class="relative flex-1 sm:w-56">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input type="text" id="history-search" oninput="filterHistory()" placeholder="ค้นหาตามชื่อ, รหัสหนังสือ..." class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <button onclick="openAddHistoryModal()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shrink-0 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>+ เพิ่มบันทึกย้อนหลัง</span>
+                            </button>
+                            <button onclick="clearAllHistory()" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>ล้างประวัติทั้งหมด</span>
+                            </button>
+                            <button onclick="exportHistoryCSV()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shrink-0 shadow-sm">
+                                <i class="fa-solid fa-file-excel"></i>
+                                <span>ส่งออก CSV</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-[11px] text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200/80">
+                                <tr>
+                                    <th class="px-5 py-3.5">วันที่-เวลาคืน</th>
+                                    <th class="px-5 py-3.5">รหัส / ชื่อหนังสือ</th>
+                                    <th class="px-5 py-3.5">ผู้คืนหนังสือ</th>
+                                    <th class="px-5 py-3.5">สภาพหนังสือที่รับคืน</th>
+                                    <th class="px-5 py-3.5">ผู้รับคืน (บรรณารักษ์)</th>
+                                    <th class="px-5 py-3.5 text-right">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body" class="divide-y divide-slate-100">
+                                <!-- Dynamic history rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: BOOK CATALOG & STUDENT MANAGER -->
+            <div id="tab-books" class="tab-content hidden space-y-6">
+                <!-- Sub Tabs Navigation -->
+                <div class="flex border-b border-slate-200 gap-4 text-sm font-semibold">
+                    <button onclick="switchSubTab('subtab-books')" id="subnav-books" class="pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2">
+                        <i class="fa-solid fa-book"></i>
+                        <span>คลังหนังสือ (<span id="subtab-books-count">0</span> เล่ม)</span>
+                    </button>
+                    <button onclick="switchSubTab('subtab-students')" id="subnav-students" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-indigo-600 flex items-center gap-2">
+                        <i class="fa-solid fa-users"></i>
+                        <span>ทะเบียนนักเรียน/สมาชิก (<span id="subtab-students-count">0</span> คน)</span>
+                    </button>
+                </div>
+
+                <!-- SUB TAB 1: BOOKS CATALOG -->
+                <div id="subtab-books" class="subtab-content space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div class="relative flex-1 w-full sm:max-w-md">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="book-search" oninput="renderBooksTable()" placeholder="ค้นหาชื่อหนังสือ, รหัส, หมวดหมู่..." class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <button onclick="openAddBookModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center gap-2 shrink-0">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>เพิ่มหนังสือใหม่เข้าคลัง</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="books-grid">
+                        <!-- Book cards rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- SUB TAB 2: STUDENTS CATALOG -->
+                <div id="subtab-students" class="subtab-content hidden space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div class="relative flex-1 w-full sm:max-w-md">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="student-search" oninput="renderStudentsTable()" placeholder="ค้นหานักเรียน, รหัส, ชั้นเรียน..." class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <button onclick="openAddStudentModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center gap-2 shrink-0">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>เพิ่มนักเรียน/สมาชิกใหม่</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table class="w-full text-left text-xs text-slate-600">
+                            <thead class="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="px-5 py-3">รหัสนักเรียน</th>
+                                    <th class="px-5 py-3">ชื่อ - นามสกุล</th>
+                                    <th class="px-5 py-3">ระดับชั้น</th>
+                                    <th class="px-5 py-3">จำนวนเล่มที่ยืมอยู่</th>
+                                    <th class="px-5 py-3 text-right">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-table-body" class="divide-y divide-slate-100">
+                                <!-- Student rows rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: CUSTOM SETTINGS, LOGO & BACKUP -->
+            <div id="tab-settings" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- School Customization & Logo Form -->
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-school"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-base">ปรับแต่งข้อมูลโรงเรียน & โลโก้</h3>
+                                <p class="text-xs text-slate-500">อัปโหลดโลโก้โรงเรียน ปรับชื่อ และตั้งค่าโควตายืม</p>
+                            </div>
+                        </div>
+
+                        <!-- Logo Change Section -->
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                            <label class="block font-bold text-xs text-slate-700">โลโก้ห้องสมุด / โรงเรียน</label>
+                            <div class="flex items-center gap-4">
+                                <div id="setting-logo-preview" class="w-16 h-16 rounded-2xl bg-amber-400 text-slate-900 flex items-center justify-center font-bold text-2xl shadow border border-slate-200 overflow-hidden shrink-0">
+                                    <i class="fa-solid fa-book-bookmark" id="setting-logo-icon"></i>
+                                    <img id="setting-logo-img" class="w-full h-full object-cover hidden" alt="Logo Preview" src="">
+                                </div>
+                                <div class="space-y-2 flex-1">
+                                    <label class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-upload"></i>
+                                        <span>อัปโหลดรูปโลโก้</span>
+                                        <input type="file" id="logo-file-input" accept="image/*" class="hidden" onchange="handleLogoUpload(event)">
+                                    </label>
+                                    <button onclick="resetLogoToDefault()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1">
+                                        <i class="fa-solid fa-rotate-left"></i>
+                                        <span>ใช้ไอคอนมาตรฐาน</span>
+                                    </button>
+                                    <p class="text-[10px] text-slate-400">รองรับไฟล์ PNG, JPG, SVG หรือใช้ลิงก์ภาพ</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-600 mb-1">หรือ วางลิงก์รูปภาพ (Image URL)</label>
+                                <input type="text" id="setting-logo-url" oninput="handleLogoUrlInput(this.value)" placeholder="https://example.com/logo.png" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">ชื่อโรงเรียน</label>
+                                <input type="text" id="setting-school-name" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">ชื่อระบบ/ห้องสมุด</label>
+                                <input type="text" id="setting-lib-title" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">ชื่อครูบรรณารักษ์ผู้ดูแล</label>
+                                <input type="text" id="setting-librarian-name" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">ระยะเวลานำส่งคืน (วัน)</label>
+                                    <input type="number" id="setting-loan-days" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">โควตายืมสูงสุด (เล่ม/คน)</label>
+                                    <input type="number" id="setting-max-borrow" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-100 flex justify-end">
+                            <button onclick="saveAppSettings()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-floppy-disk"></i>
+                                <span>บันทึกการตั้งค่าทั้งหมด</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Backup & Data Import/Export -->
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg">
+                                    <i class="fa-solid fa-database"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-base">สำรอง & นำเข้าข้อมูล (ฟรี 100%)</h3>
+                                    <p class="text-xs text-slate-500">ย้ายข้อมูลไปเครื่องอื่น หรือเก็บบันทึกไว้ในคอมพิวเตอร์</p>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-600 leading-relaxed">
+                                ระบบจะบันทึกข้อมูลอัตโนมัติในเครื่องคอมพิวเตอร์ของคุณ ท่านสามารถกดส่งออกไฟล์ <span class="font-bold text-indigo-600">.JSON</span> เพื่อนำไปเปิดในเครื่องอื่น หรือเก็บไว้เป็นไฟล์สำรองได้ฟรีตลอดเวลา
+                            </p>
+
+                            <div class="space-y-2 pt-2">
+                                <button onclick="exportFullJSON()" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm">
+                                    <i class="fa-solid fa-download text-amber-400"></i>
+                                    <span>ดาวน์โหลดไฟล์สำรองข้อมูล (Backup JSON)</span>
+                                </button>
+
+                                <label class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                    <i class="fa-solid fa-upload text-indigo-600"></i>
+                                    <span>นำเข้าข้อมูลจากไฟล์ JSON (Restore)</span>
+                                    <input type="file" id="import-json-file" accept=".json" class="hidden" onchange="importFullJSON(event)">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-700 flex items-center justify-between mt-4">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>
+                                <span>รีเซ็ตข้อมูลทั้งหมดกลับเป็นค่าเริ่มต้น</span>
+                            </div>
+                            <button onclick="confirmResetData()" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all">
+                                รีเซ็ตข้อมูล
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+
+    <!-- CUSTOM CONFIRMATION MODAL (Replaces Native confirm() completely) -->
+    <div id="custom-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-5 space-y-4 text-center">
+            <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h3 id="confirm-modal-title" class="font-bold text-base text-slate-800">ยืนยันการทำรายการ</h3>
+                <p id="confirm-modal-msg" class="text-xs text-slate-500 mt-1">คุณแน่ใจหรือไม่ว่าต้องการดำเนินการนี้?</p>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeConfirmModal(false)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">ยกเลิก</button>
+                <button onclick="closeConfirmModal(true)" class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-all">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RETURN PROCESS MODAL (NO FINE / MONEY) -->
+    <div id="return-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden transition-opacity p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-95 opacity-0 duration-200" id="modal-card">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-5 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-box-archive text-amber-400 text-base"></i>
+                    <h3 class="font-bold text-sm">ยืนยันการรับเวนคืนหนังสือ</h3>
+                </div>
+                <button onclick="closeReturnModal()" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-5 space-y-4">
+                <input type="hidden" id="modal-borrow-id">
+
+                <!-- Target Book Info -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex gap-3">
+                    <div id="modal-book-cover" class="w-12 h-16 rounded bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs shrink-0 shadow-sm border border-indigo-200">
+                        BOOK
+                    </div>
+                    <div>
+                        <span id="modal-book-code" class="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">BKS-XXXX</span>
+                        <h4 id="modal-book-title" class="font-bold text-slate-800 text-sm mt-1 leading-snug">ชื่อหนังสือตัวอย่าง</h4>
+                        <p id="modal-student-name" class="text-xs text-slate-500 mt-1">ยืมโดย: นายสมชาย ใจดี</p>
+                    </div>
+                </div>
+
+                <!-- Overdue Notice (Informational only - NO Fines) -->
+                <div id="overdue-notice-box" class="p-3.5 rounded-xl border hidden bg-amber-50 border-amber-200 text-amber-900">
+                    <div class="flex items-center gap-2 font-bold text-xs">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                        <span>หนังสือเล่มนี้ยืมเกินกำหนดมาแล้ว <span id="modal-overdue-days" class="text-rose-600 font-extrabold">0</span> วัน</span>
+                    </div>
+                    <p class="text-[11px] text-amber-700 mt-1">โปรดตรวจสอบสภาพหนังสือและลงบันทึกรับคืน</p>
+                </div>
+
+                <!-- Condition Selection -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-2">สภาพหนังสือขณะรับคืน</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="condition" value="ปกติ" checked class="peer sr-only">
+                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:text-emerald-800 transition-all text-xs font-medium">
+                                <i class="fa-solid fa-circle-check text-base block mb-1 text-emerald-500"></i>
+                                สมบูรณ์ดี
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="condition" value="ชำรุดเล็กน้อย" class="peer sr-only">
+                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white peer-checked:border-amber-500 peer-checked:bg-amber-50 peer-checked:text-amber-800 transition-all text-xs font-medium">
+                                <i class="fa-solid fa-triangle-exclamation text-base block mb-1 text-amber-500"></i>
+                                ชำรุด/มีรอย
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="condition" value="ชำรุดหนัก/สูญหาย" class="peer sr-only">
+                            <div class="p-2.5 text-center rounded-xl border border-slate-200 bg-white peer-checked:border-rose-500 peer-checked:bg-rose-50 peer-checked:text-rose-800 transition-all text-xs font-medium">
+                                <i class="fa-solid fa-circle-xmark text-base block mb-1 text-rose-500"></i>
+                                ชำรุดหนัก/หาย
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Librarian Note -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">หมายเหตุการคืน (ถ้ามี)</label>
+                    <input type="text" id="modal-notes" placeholder="เช่น สันปกชำรุดเล็กน้อย, คืนครบถ้วน" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-slate-50 px-5 py-3 border-t border-slate-100 flex gap-2 justify-end">
+                <button onclick="closeReturnModal()" class="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-xs font-bold transition-all">
+                    ยกเลิก
+                </button>
+                <button onclick="submitReturnProcess()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow flex items-center gap-1.5">
+                    <i class="fa-solid fa-check"></i>
+                    บันทึกรับคืนหนังสือ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK SCAN MANAGER MODAL -->
+    <div id="quick-scan-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-amber-400"></i>
+                    <span>ปรับแต่งปุ่มสแกนด่วน (Quick Scan Short-cuts)</span>
+                </h3>
+                <button onclick="closeQuickScanManagerModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <p class="text-xs text-slate-500">คุณสามารถเพิ่ม แก้ไข หรือลบปุ่มสแกนตัวอย่างที่ปรากฏหน้าแผงสแกนบาร์โค้ดได้ตามต้องการ</p>
+
+                <!-- Add New Quick Scan Form -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <span class="font-bold text-slate-700">เพิ่มปุ่มสแกนด่วนใหม่:</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="text" id="new-qs-label" placeholder="ชื่อปุ่ม (เช่น BKS-1001 เกินกำหนด)" class="px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" id="new-qs-code" placeholder="รหัสสแกน (เช่น BKS-1001)" class="px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 uppercase">
+                    </div>
+                    <button onclick="addQuickScanItem()" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-plus"></i> เพิ่มปุ่มนี้เข้าลิสต์
+                    </button>
+                </div>
+
+                <!-- Existing Quick Scan Buttons List -->
+                <div class="max-h-56 overflow-y-auto space-y-2 custom-scrollbar pr-1" id="quick-scan-manage-list">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-between items-center">
+                <button onclick="clearAllQuickScanItems()" class="text-xs text-rose-600 hover:text-rose-800 font-bold">ลบปุ่มตัวอย่างออกทั้งหมด</button>
+                <button onclick="closeQuickScanManagerModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow">เรียบร้อย</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD/EDIT RETURN HISTORY MODAL -->
+    <div id="history-edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-amber-400"></i>
+                    <span id="history-modal-title">ปรับแต่งประวัติการเวนคืนหนังสือ</span>
+                </h3>
+                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3 text-xs">
+                <input type="hidden" id="edit-history-id">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">วันที่-เวลาเวนคืน</label>
+                    <input type="text" id="form-history-date" placeholder="YYYY-MM-DD HH:mm" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">รหัสหนังสือ</label>
+                        <input type="text" id="form-history-bookcode" placeholder="เช่น BKS-1001" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 uppercase">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">ชื่อหนังสือ</label>
+                        <input type="text" id="form-history-booktitle" placeholder="ชื่อหนังสือ" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ชื่อผู้คืนหนังสือ (นักเรียน)</label>
+                    <input type="text" id="form-history-student" placeholder="ชื่อ-นามสกุล นักเรียน" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">สภาพหนังสือ</label>
+                        <select id="form-history-condition" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                            <option value="ปกติ">ปกติ / สมบูรณ์ดี</option>
+                            <option value="ชำรุดเล็กน้อย">ชำรุดเล็กน้อย</option>
+                            <option value="ชำรุดหนัก/สูญหาย">ชำรุดหนัก / สูญหาย</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">บรรณารักษ์ผู้รับคืน</label>
+                        <input type="text" id="form-history-librarian" placeholder="ชื่อครู/ผู้รับคืน" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">หมายเหตุเพิ่มเติม</label>
+                    <input type="text" id="form-history-notes" placeholder="หมายเหตุ" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end gap-2">
+                <button onclick="closeHistoryModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 bg-white">ยกเลิก</button>
+                <button onclick="saveHistoryForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow">บันทึกข้อมูลประวัติ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM STATS MODAL -->
+    <div id="stats-custom-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-amber-400"></i>
+                    <span>ปรับแต่งเป้าหมายสถิติ & กราฟแสดงผล</span>
+                </h3>
+                <button onclick="closeCustomStatsModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3 text-xs">
+                <p class="text-slate-500">คุณสามารถกำหนดเป้าหมายจำนวนเล่ม หรือปรับเพิ่มสถิติสมมติได้อิสระเพื่อนำไปเสนอรายงาน</p>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">เป้าหมายยอดเวนคืนหนังสือต่อวัน (เล่ม)</label>
+                    <input type="number" id="stat-target-daily" value="20" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ปรับข้อมูลกราฟประวัติย้อนหลัง 7 วัน (คั่นด้วยเครื่องหมายจุลภาค , )</label>
+                    <input type="text" id="stat-chart-values" placeholder="เช่น 12, 19, 15, 22, 14, 25, 20" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end gap-2">
+                <button onclick="closeCustomStatsModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 bg-white">ยกเลิก</button>
+                <button onclick="saveCustomStats()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow">บันทึกค่าสถิติ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BORROW MODAL -->
+    <div id="borrow-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-amber-400"></i>
+                    <span>ทำรายการยืมหนังสือใหม่</span>
+                </h3>
+                <button onclick="closeBorrowModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">เลือกนักเรียน/สมาชิกผู้ยืม</label>
+                    <select id="borrow-student-select" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">เลือกหนังสือที่จะยืม (สถานะ: พร้อมใช้งาน)</label>
+                    <select id="borrow-book-select" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end gap-2">
+                <button onclick="closeBorrowModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 bg-white">ยกเลิก</button>
+                <button onclick="submitBorrowProcess()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow">ยืนยันยืมหนังสือ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD/EDIT BOOK MODAL -->
+    <div id="book-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-book"></i>
+                    <span id="book-modal-title">เพิ่มหนังสือใหม่</span>
+                </h3>
+                <button onclick="closeBookModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">รหัสหนังสือ (Barcode)</label>
+                    <input type="text" id="form-book-code" placeholder="เช่น BKS-1007" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 uppercase">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ชื่อหนังสือ</label>
+                    <input type="text" id="form-book-title" placeholder="ชื่อหนังสือเต็ม" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">ผู้แต่ง</label>
+                        <input type="text" id="form-book-author" placeholder="ผู้แต่ง/สำนักพิมพ์" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">หมวดหมู่</label>
+                        <input type="text" id="form-book-category" placeholder="เช่น วิทยาศาสตร์" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end gap-2">
+                <button onclick="closeBookModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 bg-white">ยกเลิก</button>
+                <button onclick="saveBookForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow">บันทึกหนังสือ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD/EDIT STUDENT MODAL -->
+    <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-user-graduate"></i>
+                    <span id="student-modal-title">เพิ่มนักเรียน/สมาชิกใหม่</span>
+                </h3>
+                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">รหัสนักเรียน/สมาชิก</label>
+                    <input type="text" id="form-student-id" placeholder="เช่น STU-6504" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 uppercase">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
+                    <input type="text" id="form-student-name" placeholder="นาย/นางสาว..." class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ระดับชั้น / ห้อง</label>
+                    <input type="text" id="form-student-grade" placeholder="เช่น ม.5/1" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end gap-2">
+                <button onclick="closeStudentModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 bg-white">ยกเลิก</button>
+                <button onclick="saveStudentForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT RECEIPT AREA -->
+    <div id="print-receipt-area" class="hidden p-8 bg-white text-black font-sans">
+        <div class="text-center border-b pb-4 mb-4">
+            <h2 id="print-school" class="text-xl font-bold">โรงเรียนของเรา</h2>
+            <p id="print-lib" class="text-sm">ใบรับคืนหนังสือห้องสมุดโรงเรียน</p>
+            <p class="text-xs text-slate-500 mt-1">วันที่รับคืน: <span id="print-date"></span></p>
+        </div>
+        <div id="print-content" class="text-xs space-y-2">
+            <!-- Print content populated via JS -->
+        </div>
+        <div class="border-t pt-4 mt-6 text-center text-xs text-slate-500">
+            <p>ลงชื่อ..........................................................เจ้าหน้าที่ผู้รับคืน</p>
+            <p id="print-librarian" class="font-bold mt-1">(ครูบรรณารักษ์)</p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-message" class="text-xs font-medium">บันทึกข้อมูลสำเร็จ</span>
+    </div>
+
+    <!-- JAVASCRIPT SYSTEM LOGIC -->
+    <script>
+        const DEFAULT_LIBRARY_DATA = {
+            settings: {
+                schoolName: 'โรงเรียนของเรา',
+                libTitle: 'ระบบเวนคืนห้องสมุดโรงเรียน',
+                librarianName: 'ครูบรรณารักษ์ สุขใจ',
+                loanDaysLimit: 14,
+                maxBorrowQuota: 3,
+                logoUrl: '',
+                customStatsHistory: [12, 19, 15, 22, 14, 25, 18],
+                dailyGoalTarget: 20
+            },
+            quickScans: [
+                { label: 'BKS-1001 (เกินกำหนด)', code: 'BKS-1001' },
+                { label: 'BKS-1002 (ปกติ)', code: 'BKS-1002' },
+                { label: 'นักเรียน STU-6501', code: 'STU-6501' }
+            ],
+            students: [
+                { id: 'STU-6501', name: 'นาย ณัฐวุฒิ สมบูรณ์', grade: 'ม.5/1' },
+                { id: 'STU-6502', name: 'นางสาว กานดา รักเรียน', grade: 'ม.4/3' },
+                { id: 'STU-6503', name: 'นาย ปริญญา เก่งกาจ', grade: 'ม.6/2' }
+            ],
+            books: [
+                { code: 'BKS-1001', title: 'ฟิสิกส์มหาวิทยาลัย เล่ม 1', author: 'ดร.สมชาย', category: 'วิทยาศาสตร์', status: 'ยืมอยู่' },
+                { code: 'BKS-1002', title: 'ประวัติศาสตร์ไทยร่วมสมัย', author: 'ผศ.วิชัย', category: 'สังคมศึกษา', status: 'ยืมอยู่' },
+                { code: 'BKS-1003', title: 'การเขียนโปรแกรมด้วย Python', author: 'อาจารย์อนันต์', category: 'เทคโนโลยี', status: 'ยืมอยู่' },
+                { code: 'BKS-1004', title: 'วรรณคดีวิจักษ์ ม.5', author: 'กรมวิชาการ', category: 'ภาษาไทย', status: 'พร้อมใช้งาน' },
+                { code: 'BKS-1005', title: 'English Grammar in Use', author: 'Raymond Murphy', category: 'ภาษาต่างประเทศ', status: 'พร้อมใช้งาน' },
+                { code: 'BKS-1006', title: 'เคมีพื้นฐาน ม.ปลาย', author: 'ดร.สมศักดิ์', category: 'วิทยาศาสตร์', status: 'พร้อมใช้งาน' }
+            ],
+            activeLoans: [
+                {
+                    borrowId: 'BRW-9001',
+                    bookCode: 'BKS-1001',
+                    studentId: 'STU-6501',
+                    borrowDate: '2026-09-10',
+                    dueDate: '2026-09-24',
+                },
+                {
+                    borrowId: 'BRW-9002',
+                    bookCode: 'BKS-1002',
+                    studentId: 'STU-6501',
+                    borrowDate: '2026-09-20',
+                    dueDate: '2026-10-04',
+                },
+                {
+                    borrowId: 'BRW-9003',
+                    bookCode: 'BKS-1003',
+                    studentId: 'STU-6502',
+                    borrowDate: '2026-09-12',
+                    dueDate: '2026-09-26',
+                }
+            ],
+            returnHistory: [
+                {
+                    returnId: 'RET-001',
+                    bookCode: 'BKS-1004',
+                    bookTitle: 'วรรณคดีวิจักษ์ ม.5',
+                    studentName: 'นาย ปริญญา เก่งกาจ',
+                    returnDate: '2026-10-01 08:45',
+                    condition: 'ปกติ',
+                    librarian: 'ครูบรรณารักษ์ สุขใจ',
+                    notes: 'สภาพสมบูรณ์'
+                }
+            ]
+        };
+
+        let libraryData = loadLibraryData();
+        let onConfirmAction = null;
+
+        function loadLibraryData() {
+            try {
+                const saved = localStorage.getItem('school_library_data_v4');
+                if(saved) {
+                    const parsed = JSON.parse(saved);
+                    // Ensure new customizable keys exist
+                    if(!parsed.quickScans) parsed.quickScans = DEFAULT_LIBRARY_DATA.quickScans;
+                    if(!parsed.settings.customStatsHistory) parsed.settings.customStatsHistory = [12, 19, 15, 22, 14, 25, 18];
+                    return parsed;
+                }
+            } catch(e) {
+                console.error('Failed to load local data', e);
+            }
+            return JSON.parse(JSON.stringify(DEFAULT_LIBRARY_DATA));
+        }
+
+        function saveLibraryData() {
+            try {
+                localStorage.setItem('school_library_data_v4', JSON.stringify(libraryData));
+            } catch(e) {
+                console.error('Failed to save local data', e);
+            }
+            updateHeaderAndSettingsDisplay();
+            renderQuickScanButtons();
+        }
+
+        function openConfirmModal(title, msg, callback) {
+            document.getElementById('confirm-modal-title').innerText = title;
+            document.getElementById('confirm-modal-msg').innerText = msg;
+            onConfirmAction = callback;
+            document.getElementById('custom-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal(isConfirmed) {
+            document.getElementById('custom-confirm-modal').classList.add('hidden');
+            if(isConfirmed && typeof onConfirmAction === 'function') {
+                onConfirmAction();
+            }
+            onConfirmAction = null;
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('text-slate-300');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeNav = document.getElementById('nav-' + tabId.replace('tab-', ''));
+            if(activeNav) {
+                activeNav.classList.add('bg-indigo-600', 'text-white');
+                activeNav.classList.remove('text-slate-300');
+            }
+
+            const titleMap = {
+                'tab-return': 'ระบบเวนคืน & ยืมหนังสือ (Book Return)',
+                'tab-dashboard': 'แผงควบคุม & สถิติจำนวนหนังสือ',
+                'tab-history': 'ประวัติการรับเวนคืนหนังสือ',
+                'tab-books': 'คลังหนังสือ & ทะเบียนสมาชิก',
+                'tab-settings': 'ตั้งค่าระบบ & โลโก้โรงเรียน'
+            };
+            document.getElementById('page-title').innerText = titleMap[tabId] || 'ระบบเวนคืนหนังสือ';
+
+            if(tabId === 'tab-history') renderHistoryTable();
+            if(tabId === 'tab-books') { renderBooksTable(); renderStudentsTable(); }
+            if(tabId === 'tab-dashboard') updateDashboardAndCharts();
+            if(tabId === 'tab-settings') populateSettingsForm();
+        }
+
+        function switchSubTab(subTabId) {
+            document.querySelectorAll('.subtab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(subTabId).classList.remove('hidden');
+
+            const isBooks = subTabId === 'subtab-books';
+            document.getElementById('subnav-books').className = isBooks 
+                ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 font-bold'
+                : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-indigo-600 flex items-center gap-2 font-medium';
+            
+            document.getElementById('subnav-students').className = !isBooks 
+                ? 'pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 font-bold'
+                : 'pb-3 border-b-2 border-transparent text-slate-500 hover:text-indigo-600 flex items-center gap-2 font-medium';
+        }
+
+        let currentSearchQuery = '';
+
+        function renderQuickScanButtons() {
+            const container = document.getElementById('quick-scan-buttons-list');
+            if(!container) return;
+
+            if(!libraryData.quickScans || libraryData.quickScans.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">ไม่มีปุ่มสแกนด่วน (กดจัดการเพื่อเพิ่มใหม่)</span>`;
+                return;
+            }
+
+            container.innerHTML = libraryData.quickScans.map((qs, index) => `
+                <button onclick="quickScan('${qs.code}')" class="hover:bg-slate-700 bg-slate-800/90 text-slate-200 text-xs px-2.5 py-1 rounded-lg border border-slate-600 transition-all flex items-center gap-1 shadow-sm">
+                    <span>${qs.label}</span>
+                </button>
+            `).join('');
+        }
+
+        function openQuickScanManagerModal() {
+            renderQuickScanManageList();
+            document.getElementById('quick-scan-modal').classList.remove('hidden');
+        }
+
+        function closeQuickScanManagerModal() {
+            document.getElementById('quick-scan-modal').classList.add('hidden');
+        }
+
+        function renderQuickScanManageList() {
+            const listContainer = document.getElementById('quick-scan-manage-list');
+            if(!libraryData.quickScans || libraryData.quickScans.length === 0) {
+                listContainer.innerHTML = `<div class="text-center text-xs text-slate-400 py-4">ไม่มีรายการปุ่มสแกนด่วน</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = libraryData.quickScans.map((qs, idx) => `
+                <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                    <div>
+                        <span class="font-bold text-slate-800">${qs.label}</span>
+                        <span class="ml-2 text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">${qs.code}</span>
+                    </div>
+                    <button onclick="removeQuickScanItem(${idx})" class="text-rose-600 hover:text-rose-800 font-bold px-2 py-1 bg-rose-50 rounded">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addQuickScanItem() {
+            const label = document.getElementById('new-qs-label').value.trim();
+            const code = document.getElementById('new-qs-code').value.trim().toUpperCase();
+
+            if(!label || !code) {
+                showToast('กรุณากรอกชื่อปุ่มและรหัสบาร์โค้ดให้ครบถ้วน', 'warning');
+                return;
+            }
+
+            if(!libraryData.quickScans) libraryData.quickScans = [];
+            libraryData.quickScans.push({ label, code });
+            saveLibraryData();
+
+            document.getElementById('new-qs-label').value = '';
+            document.getElementById('new-qs-code').value = '';
+            renderQuickScanManageList();
+            showToast('เพิ่มปุ่มสแกนด่วนสำเร็จ');
+        }
+
+        function removeQuickScanItem(index) {
+            libraryData.quickScans.splice(index, 1);
+            saveLibraryData();
+            renderQuickScanManageList();
+            showToast('ลบปุ่มสแกนด่วนแล้ว');
+        }
+
+        function clearAllQuickScanItems() {
+            openConfirmModal('ลบปุ่มตัวอย่างทั้งหมด', 'คุณต้องการลบปุ่มสแกนตัวอย่างทั้งหมดออกใช่หรือไม่?', () => {
+                libraryData.quickScans = [];
+                saveLibraryData();
+                renderQuickScanManageList();
+                showToast('ลบปุ่มตัวอย่างออกทั้งหมดแล้ว');
+            });
+        }
+
+        function handleScanSearch() {
+            currentSearchQuery = document.getElementById('scan-input').value.trim().toUpperCase();
+            renderActiveLoansList(currentSearchQuery);
+        }
+
+        function quickScan(code) {
+            document.getElementById('scan-input').value = code;
+            handleScanSearch();
+        }
+
+        function clearSearchFilter() {
+            document.getElementById('scan-input').value = '';
+            currentSearchQuery = '';
+            renderActiveLoansList();
+        }
+
+        function renderActiveLoansList(query = '') {
+            const container = document.getElementById('borrow-items-container');
+            const studentBox = document.getElementById('student-detail-box');
+            const studentBadge = document.getElementById('student-status-badge');
+
+            let filtered = [...libraryData.activeLoans];
+
+            if(query) {
+                filtered = filtered.filter(loan => {
+                    const student = libraryData.students.find(s => s.id === loan.studentId);
+                    const book = libraryData.books.find(b => b.code === loan.bookCode);
+                    return loan.bookCode.toUpperCase().includes(query) ||
+                           loan.studentId.toUpperCase().includes(query) ||
+                           (student && student.name.toLowerCase().includes(query.toLowerCase())) ||
+                           (book && book.title.toLowerCase().includes(query.toLowerCase()));
+                });
+            }
+
+            document.getElementById('pending-count-badge').innerText = `ยืมอยู่ทั้งหมด ${filtered.length} เล่ม`;
+
+            // Student Card Preview
+            if(query && filtered.length > 0) {
+                const firstLoan = filtered[0];
+                const student = libraryData.students.find(s => s.id === firstLoan.studentId);
+                if(student) {
+                    const studentBorrowedCount = libraryData.activeLoans.filter(l => l.studentId === student.id).length;
+                    studentBadge.innerText = 'พบข้อมูลสมาชิก';
+                    studentBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700';
+                    studentBox.innerHTML = `
+                        <div class="w-16 h-16 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center mx-auto font-bold text-xl mb-2 border-2 border-indigo-200 shadow-sm">
+                            ${student.name.replace(/^(นาย|นางสาว|เด็กชาย|เด็กหญิง)/, '').charAt(0)}
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base">${student.name}</h4>
+                        <p class="text-xs text-indigo-600 font-semibold mt-0.5">${student.id} | ชั้น ${student.grade}</p>
+                        <p class="text-xs font-bold text-slate-600 mt-2 bg-indigo-50 py-1.5 px-3 rounded-lg border border-indigo-100 inline-block">
+                            ยืมหนังสือค้างส่งอยู่ ${studentBorrowedCount} เล่ม
+                        </p>
+                    `;
+                }
+            } else if(query && filtered.length === 0) {
+                studentBadge.innerText = 'ไม่พบรายการ';
+                studentBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-700';
+                studentBox.innerHTML = `
+                    <div class="w-14 h-14 bg-rose-50 text-rose-400 rounded-full flex items-center justify-center mx-auto text-xl mb-2 border border-rose-200">
+                        <i class="fa-solid fa-user-xmark"></i>
+                    </div>
+                    <p class="text-slate-600 font-semibold text-xs">ไม่พบรายการยืมค้างส่ง</p>
+                    <p class="text-[11px] text-slate-400 mt-1">หนังสืออาจจะถูกเวนคืนแล้ว หรือพิมพ์รหัสไม่ถูกต้อง</p>
+                `;
+            } else {
+                studentBadge.innerText = 'แสดงทั้งหมด';
+                studentBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600';
+                studentBox.innerHTML = `
+                    <div class="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto text-xl mb-2 border border-indigo-100">
+                        <i class="fa-solid fa-user-graduate"></i>
+                    </div>
+                    <p class="text-slate-600 font-semibold text-xs">แสดงรายการยืมค้างส่งทั้งหมดในระบบ</p>
+                    <p class="text-[11px] text-slate-400 mt-1">สแกนบาร์โค้ดเพื่อกรองเฉพาะบุคคลหรือเล่มหนังสือ</p>
+                `;
+            }
+
+            if(filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-16 text-slate-400">
+                        <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
+                        <p class="text-sm font-medium">ไม่มีรายการหนังสือที่รอดำเนินการเวนคืน</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const todayStr = getTodayDateStr();
+
+            container.innerHTML = filtered.map(loan => {
+                const book = libraryData.books.find(b => b.code === loan.bookCode) || { title: 'หนังสือทั่วไป', category: '-' };
+                const student = libraryData.students.find(s => s.id === loan.studentId) || { name: loan.studentId };
+
+                const due = new Date(loan.dueDate);
+                const today = new Date(todayStr);
+                const diffTime = today - due;
+                const overdueDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                const isOverdue = overdueDays > 0;
+
+                return `
+                    <div class="p-4 rounded-xl border ${isOverdue ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white'} hover:shadow-md transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-12 h-14 rounded-lg ${isOverdue ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-700'} font-bold flex flex-col items-center justify-center text-xs shrink-0 shadow-sm border border-slate-200">
+                                <i class="fa-solid fa-book text-base mb-0.5"></i>
+                                <span class="text-[9px] truncate max-w-[42px]">${loan.bookCode}</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded ${isOverdue ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}">
+                                        ${loan.bookCode}
+                                    </span>
+                                    <span class="text-[11px] text-slate-400 font-medium">${book.category}</span>
+                                </div>
+                                <h5 class="font-bold text-slate-800 text-xs sm:text-sm mt-1">${book.title}</h5>
+                                <p class="text-xs text-slate-500 mt-0.5">ผู้ยืม: <span class="font-medium text-slate-700">${student.name}</span> (${loan.studentId})</p>
+                                
+                                <div class="flex items-center gap-3 text-[11px] text-slate-500 mt-1.5">
+                                    <span>วันที่ยืม: ${loan.borrowDate}</span>
+                                    <span>•</span>
+                                    <span class="${isOverdue ? 'text-amber-700 font-bold' : ''}">กำหนดคืน: ${loan.dueDate}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex sm:flex-col items-end justify-between w-full sm:w-auto gap-2 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0">
+                            ${isOverdue ? `
+                                <span class="inline-block px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <i class="fa-solid fa-clock-rotate-left"></i> เกินกำหนด ${overdueDays} วัน
+                                </span>
+                            ` : `
+                                <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    <i class="fa-solid fa-check"></i> ในกำหนดเวลา
+                                </span>
+                            `}
+                            
+                            <button onclick="openReturnModal('${loan.borrowId}')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span>ทำรายการคืน</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openReturnModal(borrowId) {
+            const loan = libraryData.activeLoans.find(l => l.borrowId === borrowId);
+            if(!loan) return;
+
+            const book = libraryData.books.find(b => b.code === loan.bookCode);
+            const student = libraryData.students.find(s => s.id === loan.studentId);
+
+            const todayStr = getTodayDateStr();
+            const due = new Date(loan.dueDate);
+            const today = new Date(todayStr);
+            const diffTime = today - due;
+            const overdueDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+            document.getElementById('modal-borrow-id').value = borrowId;
+            document.getElementById('modal-book-code').innerText = loan.bookCode;
+            document.getElementById('modal-book-title').innerText = book ? book.title : 'หนังสือ';
+            document.getElementById('modal-student-name').innerText = `ยืมโดย: ${student ? student.name : loan.studentId}`;
+            
+            const noticeBox = document.getElementById('overdue-notice-box');
+            if(overdueDays > 0) {
+                noticeBox.classList.remove('hidden');
+                document.getElementById('modal-overdue-days').innerText = overdueDays;
+            } else {
+                noticeBox.classList.add('hidden');
+            }
+
+            document.getElementById('modal-notes').value = '';
+
+            const modal = document.getElementById('return-modal');
+            const card = document.getElementById('modal-card');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                card.classList.remove('scale-95', 'opacity-0');
+                card.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeReturnModal() {
+            const modal = document.getElementById('return-modal');
+            const card = document.getElementById('modal-card');
+            card.classList.remove('scale-100', 'opacity-100');
+            card.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => { modal.classList.add('hidden'); }, 200);
+        }
+
+        function submitReturnProcess() {
+            const borrowId = document.getElementById('modal-borrow-id').value;
+            const loanIndex = libraryData.activeLoans.findIndex(l => l.borrowId === borrowId);
+            
+            if(loanIndex === -1) return;
+
+            const loan = libraryData.activeLoans[loanIndex];
+            const book = libraryData.books.find(b => b.code === loan.bookCode);
+            const student = libraryData.students.find(s => s.id === loan.studentId);
+
+            const todayStr = getTodayDateStr();
+            const condition = document.querySelector('input[name="condition"]:checked').value;
+            const notes = document.getElementById('modal-notes').value;
+
+            // Record Return History
+            const newHistoryRecord = {
+                returnId: 'RET-' + Math.floor(1000 + Math.random() * 9000),
+                bookCode: loan.bookCode,
+                bookTitle: book ? book.title : 'หนังสือ',
+                studentName: student ? student.name : loan.studentId,
+                returnDate: todayStr + ' ' + getCurrentTimeStr(),
+                condition: condition,
+                librarian: libraryData.settings.librarianName || 'บรรณารักษ์',
+                notes: notes
+            };
+
+            libraryData.returnHistory.unshift(newHistoryRecord);
+
+            // Update Book status
+            if(book) {
+                book.status = (condition === 'ชำรุดหนัก/สูญหาย') ? 'ชำรุด/สูญหาย' : 'พร้อมใช้งาน';
+            }
+
+            // Remove from active loans
+            libraryData.activeLoans.splice(loanIndex, 1);
+
+            saveLibraryData();
+            closeReturnModal();
+            renderActiveLoansList(currentSearchQuery);
+            showToast(`เวนคืนหนังสือ ${loan.bookCode} สำเร็จเรียบร้อย`);
+        }
+
+        function openBorrowModal() {
+            const studentSelect = document.getElementById('borrow-student-select');
+            const bookSelect = document.getElementById('borrow-book-select');
+
+            studentSelect.innerHTML = libraryData.students.map(s => 
+                `<option value="${s.id}">${s.name} (${s.id} - ชั้น ${s.grade})</option>`
+            ).join('');
+
+            const availableBooks = libraryData.books.filter(b => b.status === 'พร้อมใช้งาน');
+            if(availableBooks.length === 0) {
+                bookSelect.innerHTML = `<option value="">-- ไม่มีหนังสือพร้อมยืมในขณะนี้ --</option>`;
+            } else {
+                bookSelect.innerHTML = availableBooks.map(b => 
+                    `<option value="${b.code}">${b.title} (${b.code})</option>`
+                ).join('');
+            }
+
+            document.getElementById('borrow-modal').classList.remove('hidden');
+        }
+
+        function closeBorrowModal() {
+            document.getElementById('borrow-modal').classList.add('hidden');
+        }
+
+        function submitBorrowProcess() {
+            const studentId = document.getElementById('borrow-student-select').value;
+            const bookCode = document.getElementById('borrow-book-select').value;
+
+            if(!studentId || !bookCode) {
+                showToast('กรุณาเลือกนักเรียนและหนังสือที่ต้องการยืม', 'warning');
+                return;
+            }
+
+            const activeCount = libraryData.activeLoans.filter(l => l.studentId === studentId).length;
+            const maxQuota = libraryData.settings.maxBorrowQuota || 3;
+            if(activeCount >= maxQuota) {
+                showToast(`นักเรียนยืมหนังสือครบโควตา ${maxQuota} เล่มแล้ว`, 'warning');
+                return;
+            }
+
+            const todayStr = getTodayDateStr();
+            const loanDays = libraryData.settings.loanDaysLimit || 14;
+            const dueDateObj = new Date();
+            dueDateObj.setDate(dueDateObj.getDate() + loanDays);
+            const dueDateStr = dueDateObj.toISOString().split('T')[0];
+
+            libraryData.activeLoans.push({
+                borrowId: 'BRW-' + Math.floor(1000 + Math.random() * 9000),
+                bookCode: bookCode,
+                studentId: studentId,
+                borrowDate: todayStr,
+                dueDate: dueDateStr
+            });
+
+            const book = libraryData.books.find(b => b.code === bookCode);
+            if(book) book.status = 'ยืมอยู่';
+
+            saveLibraryData();
+            closeBorrowModal();
+            renderActiveLoansList(currentSearchQuery);
+            showToast('บันทึกการยืมหนังสือเรียบร้อย');
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            const search = (document.getElementById('history-search').value || '').toLowerCase();
+
+            const filtered = libraryData.returnHistory.filter(item => 
+                item.bookCode.toLowerCase().includes(search) ||
+                item.bookTitle.toLowerCase().includes(search) ||
+                item.studentName.toLowerCase().includes(search)
+            );
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400 text-xs">ไม่พบประวัติการเวนคืนหนังสือ</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => {
+                let condBadge = 'bg-emerald-100 text-emerald-700';
+                if(item.condition.includes('ชำรุดเล็กน้อย')) condBadge = 'bg-amber-100 text-amber-700';
+                if(item.condition.includes('ชำรุดหนัก')) condBadge = 'bg-rose-100 text-rose-700';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition-all">
+                        <td class="px-5 py-3 text-xs text-slate-500 whitespace-nowrap">${item.returnDate}</td>
+                        <td class="px-5 py-3">
+                            <div class="font-bold text-slate-800 text-xs">${item.bookTitle}</div>
+                            <div class="text-[10px] text-indigo-600 font-semibold">${item.bookCode}</div>
+                        </td>
+                        <td class="px-5 py-3 text-xs font-medium text-slate-700">${item.studentName}</td>
+                        <td class="px-5 py-3">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${condBadge}">${item.condition}</span>
+                        </td>
+                        <td class="px-5 py-3 text-xs font-medium text-slate-600">${item.librarian}</td>
+                        <td class="px-5 py-3 text-right space-x-1">
+                            <button onclick="openEditHistoryModal('${item.returnId}')" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-medium transition-all" title="แก้ไขรายการนี้">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button onclick="printReturnReceipt('${item.returnId}')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-all" title="พิมพ์ใบรับคืน">
+                                <i class="fa-solid fa-print"></i>
+                            </button>
+                            <button onclick="deleteHistoryItem('${item.returnId}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-medium transition-all" title="ลบรายการนี้">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterHistory() { renderHistoryTable(); }
+
+        function openAddHistoryModal() {
+            document.getElementById('history-modal-title').innerText = 'เพิ่มประวัติรับคืนย้อนหลัง';
+            document.getElementById('edit-history-id').value = '';
+            document.getElementById('form-history-date').value = getTodayDateStr() + ' ' + getCurrentTimeStr();
+            document.getElementById('form-history-bookcode').value = '';
+            document.getElementById('form-history-booktitle').value = '';
+            document.getElementById('form-history-student').value = '';
+            document.getElementById('form-history-condition').value = 'ปกติ';
+            document.getElementById('form-history-librarian').value = libraryData.settings.librarianName || 'บรรณารักษ์';
+            document.getElementById('form-history-notes').value = '';
+            document.getElementById('history-edit-modal').classList.remove('hidden');
+        }
+
+        function openEditHistoryModal(returnId) {
+            const item = libraryData.returnHistory.find(r => r.returnId === returnId);
+            if(!item) return;
+
+            document.getElementById('history-modal-title').innerText = 'แก้ไขประวัติการรับเวนคืน';
+            document.getElementById('edit-history-id').value = item.returnId;
+            document.getElementById('form-history-date').value = item.returnDate;
+            document.getElementById('form-history-bookcode').value = item.bookCode;
+            document.getElementById('form-history-booktitle').value = item.bookTitle;
+            document.getElementById('form-history-student').value = item.studentName;
+            document.getElementById('form-history-condition').value = item.condition || 'ปกติ';
+            document.getElementById('form-history-librarian').value = item.librarian || libraryData.settings.librarianName;
+            document.getElementById('form-history-notes').value = item.notes || '';
+
+            document.getElementById('history-edit-modal').classList.remove('hidden');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-edit-modal').classList.add('hidden');
+        }
+
+        function saveHistoryForm() {
+            const editId = document.getElementById('edit-history-id').value;
+            const returnDate = document.getElementById('form-history-date').value.trim() || (getTodayDateStr() + ' ' + getCurrentTimeStr());
+            const bookCode = document.getElementById('form-history-bookcode').value.trim().toUpperCase();
+            const bookTitle = document.getElementById('form-history-booktitle').value.trim();
+            const studentName = document.getElementById('form-history-student').value.trim();
+            const condition = document.getElementById('form-history-condition').value;
+            const librarian = document.getElementById('form-history-librarian').value.trim() || 'บรรณารักษ์';
+            const notes = document.getElementById('form-history-notes').value.trim();
+
+            if(!bookCode || !bookTitle || !studentName) {
+                showToast('กรุณากรอกรหัสหนังสือ ชื่อหนังสือ และชื่อนักเรียน', 'warning');
+                return;
+            }
+
+            if(editId) {
+                const idx = libraryData.returnHistory.findIndex(r => r.returnId === editId);
+                if(idx !== -1) {
+                    libraryData.returnHistory[idx] = { returnId: editId, returnDate, bookCode, bookTitle, studentName, condition, librarian, notes };
+                }
+            } else {
+                const newRecord = {
+                    returnId: 'RET-' + Math.floor(1000 + Math.random() * 9000),
+                    returnDate, bookCode, bookTitle, studentName, condition, librarian, notes
+                };
+                libraryData.returnHistory.unshift(newRecord);
+            }
+
+            saveLibraryData();
+            closeHistoryModal();
+            renderHistoryTable();
+            showToast('บันทึกประวัติการเวนคืนหนังสือแล้ว');
+        }
+
+        function deleteHistoryItem(returnId) {
+            openConfirmModal('ลบรายการประวัติ', 'คุณต้องการลบรายการประวัตินี้ใช่หรือไม่?', () => {
+                libraryData.returnHistory = libraryData.returnHistory.filter(r => r.returnId !== returnId);
+                saveLibraryData();
+                renderHistoryTable();
+                showToast('ลบรายการประวัติแล้ว');
+            });
+        }
+
+        function clearAllHistory() {
+            openConfirmModal('ล้างประวัติทั้งหมด', 'คุณต้องการล้างประวัติการรับเวนคืนทั้งหมดใช่หรือไม่?', () => {
+                libraryData.returnHistory = [];
+                saveLibraryData();
+                renderHistoryTable();
+                showToast('ล้างประวัติการเวนคืนทั้งหมดเรียบร้อยแล้ว');
+            });
+        }
+
+        function renderBooksTable() {
+            const grid = document.getElementById('books-grid');
+            const search = (document.getElementById('book-search').value || '').toLowerCase();
+
+            const filtered = libraryData.books.filter(b => 
+                b.code.toLowerCase().includes(search) || 
+                b.title.toLowerCase().includes(search) ||
+                b.category.toLowerCase().includes(search)
+            );
+
+            document.getElementById('subtab-books-count').innerText = libraryData.books.length;
+
+            grid.innerHTML = filtered.map(b => {
+                let statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                if(b.status === 'ยืมอยู่') statusColor = 'bg-indigo-100 text-indigo-700 border-indigo-200';
+                if(b.status === 'ชำรุด/สูญหาย') statusColor = 'bg-rose-100 text-rose-700 border-rose-200';
+
+                return `
+                    <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex justify-between items-start">
+                        <div>
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">${b.code}</span>
+                            <h5 class="font-bold text-slate-800 text-xs sm:text-sm mt-1.5 leading-snug">${b.title}</h5>
+                            <p class="text-xs text-slate-500 mt-1">ผู้แต่ง: ${b.author}</p>
+                            <span class="inline-block mt-2 text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">${b.category}</span>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusColor} shrink-0">
+                                ${b.status}
+                            </span>
+                            <button onclick="deleteBook('${b.code}')" class="text-slate-400 hover:text-rose-600 text-xs mt-2" title="ลบหนังสือ">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderStudentsTable() {
+            const tbody = document.getElementById('students-table-body');
+            const search = (document.getElementById('student-search').value || '').toLowerCase();
+
+            const filtered = libraryData.students.filter(s => 
+                s.id.toLowerCase().includes(search) ||
+                s.name.toLowerCase().includes(search) ||
+                s.grade.toLowerCase().includes(search)
+            );
+
+            document.getElementById('subtab-students-count').innerText = libraryData.students.length;
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">ไม่พบรายชื่อสมาชิก</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(s => {
+                const borrowedCount = libraryData.activeLoans.filter(l => l.studentId === s.id).length;
+                return `
+                    <tr class="hover:bg-slate-50 transition-all">
+                        <td class="px-5 py-3 font-bold text-indigo-600">${s.id}</td>
+                        <td class="px-5 py-3 font-bold text-slate-800">${s.name}</td>
+                        <td class="px-5 py-3 text-slate-600">${s.grade}</td>
+                        <td class="px-5 py-3 font-bold ${borrowedCount > 0 ? 'text-indigo-600' : 'text-slate-400'}">${borrowedCount} เล่ม</td>
+                        <td class="px-5 py-3 text-right">
+                            <button onclick="deleteStudent('${s.id}')" class="text-slate-400 hover:text-rose-600" title="ลบรายชื่อ">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openAddBookModal() {
+            document.getElementById('book-modal-title').innerText = 'เพิ่มหนังสือใหม่';
+            document.getElementById('form-book-code').value = '';
+            document.getElementById('form-book-title').value = '';
+            document.getElementById('form-book-author').value = '';
+            document.getElementById('form-book-category').value = '';
+            document.getElementById('book-modal').classList.remove('hidden');
+        }
+        function closeBookModal() { document.getElementById('book-modal').classList.add('hidden'); }
+
+        function saveBookForm() {
+            const code = document.getElementById('form-book-code').value.trim().toUpperCase();
+            const title = document.getElementById('form-book-title').value.trim();
+            const author = document.getElementById('form-book-author').value.trim() || 'ไม่ระบุ';
+            const category = document.getElementById('form-book-category').value.trim() || 'ทั่วไป';
+
+            if(!code || !title) {
+                showToast('กรุณากรอกรหัสหนังสือและชื่อหนังสือ', 'warning');
+                return;
+            }
+
+            const existingIdx = libraryData.books.findIndex(b => b.code === code);
+            if(existingIdx >= 0) {
+                libraryData.books[existingIdx] = { code, title, author, category, status: libraryData.books[existingIdx].status };
+            } else {
+                libraryData.books.push({ code, title, author, category, status: 'พร้อมใช้งาน' });
+            }
+
+            saveLibraryData();
+            closeBookModal();
+            renderBooksTable();
+            showToast('บันทึกข้อมูลหนังสือเรียบร้อย');
+        }
+
+        function deleteBook(code) {
+            openConfirmModal('ลบหนังสือ', `คุณต้องการลบหนังสือรหัส ${code} ใช่หรือไม่?`, () => {
+                libraryData.books = libraryData.books.filter(b => b.code !== code);
+                saveLibraryData();
+                renderBooksTable();
+                showToast('ลบหนังสือออกจากระบบแล้ว');
+            });
+        }
+
+        function openAddStudentModal() {
+            document.getElementById('student-modal-title').innerText = 'เพิ่มนักเรียน/สมาชิกใหม่';
+            document.getElementById('form-student-id').value = '';
+            document.getElementById('form-student-name').value = '';
+            document.getElementById('form-student-grade').value = '';
+            document.getElementById('student-modal').classList.remove('hidden');
+        }
+        function closeStudentModal() { document.getElementById('student-modal').classList.add('hidden'); }
+
+        function saveStudentForm() {
+            const id = document.getElementById('form-student-id').value.trim().toUpperCase();
+            const name = document.getElementById('form-student-name').value.trim();
+            const grade = document.getElementById('form-student-grade').value.trim() || 'ไม่ระบุ';
+
+            if(!id || !name) {
+                showToast('กรุณากรอกรหัสนักเรียนและชื่อ-นามสกุล', 'warning');
+                return;
+            }
+
+            const existingIdx = libraryData.students.findIndex(s => s.id === id);
+            if(existingIdx >= 0) {
+                libraryData.students[existingIdx] = { id, name, grade };
+            } else {
+                libraryData.students.push({ id, name, grade });
+            }
+
+            saveLibraryData();
+            closeStudentModal();
+            renderStudentsTable();
+            showToast('บันทึกข้อมูลสมาชิกเรียบร้อย');
+        }
+
+        function deleteStudent(id) {
+            openConfirmModal('ลบข้อมูลสมาชิก', `คุณต้องการลบสมาชิก ${id} ใช่หรือไม่?`, () => {
+                libraryData.students = libraryData.students.filter(s => s.id !== id);
+                saveLibraryData();
+                renderStudentsTable();
+                showToast('ลบข้อมูลนักเรียนแล้ว');
+            });
+        }
+
+        function populateSettingsForm() {
+            const st = libraryData.settings;
+            document.getElementById('setting-school-name').value = st.schoolName || '';
+            document.getElementById('setting-lib-title').value = st.libTitle || '';
+            document.getElementById('setting-librarian-name').value = st.librarianName || '';
+            document.getElementById('setting-loan-days').value = st.loanDaysLimit || 14;
+            document.getElementById('setting-max-borrow').value = st.maxBorrowQuota || 3;
+            document.getElementById('setting-logo-url').value = st.logoUrl || '';
+
+            updateLogoPreviewDisplay(st.logoUrl);
+        }
+
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Url = e.target.result;
+                libraryData.settings.logoUrl = base64Url;
+                document.getElementById('setting-logo-url').value = '';
+                updateLogoPreviewDisplay(base64Url);
+                saveLibraryData();
+                showToast('อัปโหลดและเปลี่ยนโลโก้เรียบร้อยแล้ว');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleLogoUrlInput(url) {
+            libraryData.settings.logoUrl = url.trim();
+            updateLogoPreviewDisplay(url.trim());
+        }
+
+        function resetLogoToDefault() {
+            libraryData.settings.logoUrl = '';
+            document.getElementById('setting-logo-url').value = '';
+            updateLogoPreviewDisplay('');
+            saveLibraryData();
+            showToast('รีเซ็ตโลโก้เป็นไอคอนมาตรฐานแล้ว');
+        }
+
+        function updateLogoPreviewDisplay(url) {
+            const iconEl = document.getElementById('setting-logo-icon');
+            const imgEl = document.getElementById('setting-logo-img');
+
+            const mainIconEl = document.getElementById('app-logo-icon');
+            const mainImgEl = document.getElementById('app-logo-img');
+
+            if(url) {
+                if(iconEl) iconEl.classList.add('hidden');
+                if(imgEl) { imgEl.src = url; imgEl.classList.remove('hidden'); }
+
+                if(mainIconEl) mainIconEl.classList.add('hidden');
+                if(mainImgEl) { mainImgEl.src = url; mainImgEl.classList.remove('hidden'); }
+            } else {
+                if(iconEl) iconEl.classList.remove('hidden');
+                if(imgEl) { imgEl.classList.add('hidden'); imgEl.src = ''; }
+
+                if(mainIconEl) mainIconEl.classList.remove('hidden');
+                if(mainImgEl) { mainImgEl.classList.add('hidden'); mainImgEl.src = ''; }
+            }
+        }
+
+        function saveAppSettings() {
+            libraryData.settings.schoolName = document.getElementById('setting-school-name').value.trim() || 'โรงเรียนของเรา';
+            libraryData.settings.libTitle = document.getElementById('setting-lib-title').value.trim() || 'ระบบเวนคืนห้องสมุด';
+            libraryData.settings.librarianName = document.getElementById('setting-librarian-name').value.trim() || 'ครูบรรณารักษ์';
+            libraryData.settings.loanDaysLimit = parseInt(document.getElementById('setting-loan-days').value) || 14;
+            libraryData.settings.maxBorrowQuota = parseInt(document.getElementById('setting-max-borrow').value) || 3;
+
+            saveLibraryData();
+            showToast('บันทึกการตั้งค่าเรียบร้อยแล้ว');
+        }
+
+        function updateHeaderAndSettingsDisplay() {
+            const st = libraryData.settings;
+            document.getElementById('app-school-name').innerText = st.schoolName;
+            document.getElementById('app-lib-title').innerText = st.libTitle;
+            document.getElementById('app-librarian-name').innerText = st.librarianName;
+            document.getElementById('display-loan-days-info').innerText = `${st.loanDaysLimit || 14} วัน`;
+            document.getElementById('display-max-borrow-info').innerText = `${st.maxBorrowQuota || 3} เล่ม / คน`;
+
+            updateLogoPreviewDisplay(st.logoUrl);
+        }
+
+        function exportFullJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(libraryData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `school_library_data_${getTodayDateStr()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('ดาวน์โหลดไฟล์สำรองข้อมูลสำเร็จ');
+        }
+
+        function importFullJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if(imported.settings && imported.books && imported.students) {
+                        libraryData = imported;
+                        saveLibraryData();
+                        location.reload();
+                    } else {
+                        showToast('รูปแบบไฟล์สำรองข้อมูลไม่ถูกต้อง', 'error');
+                    }
+                } catch(err) {
+                    showToast('ไม่สามารถอ่านไฟล์ JSON ได้', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function confirmResetData() {
+            openConfirmModal('รีเซ็ตข้อมูลทั้งหมด', 'คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตข้อมูลทั้งหมดกลับเป็นค่าเริ่มต้น?', () => {
+                libraryData = JSON.parse(JSON.stringify(DEFAULT_LIBRARY_DATA));
+                saveLibraryData();
+                location.reload();
+            });
+        }
+
+        function exportHistoryCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "วันที่รับคืน,รหัสหนังสือ,ชื่อหนังสือ,ชื่อผู้คืน,สภาพหนังสือ,ผู้รับคืน\n";
+
+            libraryData.returnHistory.forEach(r => {
+                csvContent += `"${r.returnDate}","${r.bookCode}","${r.bookTitle}","${r.studentName}","${r.condition}","${r.librarian}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `library_returns_${getTodayDateStr()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast('ส่งออก CSV สำเร็จ');
+        }
+
+        function printReturnReceipt(returnId) {
+            const item = libraryData.returnHistory.find(r => r.returnId === returnId);
+            if(!item) return;
+
+            document.getElementById('print-school').innerText = libraryData.settings.schoolName;
+            document.getElementById('print-lib').innerText = libraryData.settings.libTitle;
+            document.getElementById('print-date').innerText = item.returnDate;
+            document.getElementById('print-librarian').innerText = `(${item.librarian})`;
+
+            document.getElementById('print-content').innerHTML = `
+                <div style="border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 6px;">
+                    <p><strong>รหัสทำรายการคืน:</strong> ${item.returnId}</p>
+                    <p><strong>ผู้คืนหนังสือ:</strong> ${item.studentName}</p>
+                    <p><strong>รายการหนังสือ:</strong> ${item.bookTitle} (${item.bookCode})</p>
+                    <p><strong>สภาพหนังสือที่รับคืน:</strong> ${item.condition}</p>
+                    ${item.notes ? `<p><strong>หมายเหตุ:</strong> ${item.notes}</p>` : ''}
+                </div>
+            `;
+
+            window.print();
+        }
+
+        let returnChartInstance = null;
+        let conditionChartInstance = null;
+
+        function openCustomStatsModal() {
+            const st = libraryData.settings;
+            document.getElementById('stat-target-daily').value = st.dailyGoalTarget || 20;
+            document.getElementById('stat-chart-values').value = (st.customStatsHistory || [12, 19, 15, 22, 14, 25, 18]).join(', ');
+            document.getElementById('stats-custom-modal').classList.remove('hidden');
+        }
+
+        function closeCustomStatsModal() {
+            document.getElementById('stats-custom-modal').classList.add('hidden');
+        }
+
+        function saveCustomStats() {
+            const target = parseInt(document.getElementById('stat-target-daily').value) || 20;
+            const valuesRaw = document.getElementById('stat-chart-values').value;
+            const vals = valuesRaw.split(',').map(v => parseInt(v.trim()) || 0);
+
+            libraryData.settings.dailyGoalTarget = target;
+            if(vals.length > 0) {
+                libraryData.settings.customStatsHistory = vals;
+            }
+
+            saveLibraryData();
+            closeCustomStatsModal();
+            updateDashboardAndCharts();
+            showToast('บันทึกการปรับแต่งสถิติเรียบร้อย');
+        }
+
+        function updateDashboardAndCharts() {
+            const todayStr = getTodayDateStr();
+            
+            // Stats Counts
+            const todayReturns = libraryData.returnHistory.filter(r => r.returnDate.startsWith(todayStr)).length;
+            document.getElementById('stat-today-returns').innerText = `${todayReturns} เล่ม`;
+            document.getElementById('stat-current-borrowed').innerText = `${libraryData.activeLoans.length} เล่ม`;
+
+            let overdueCount = 0;
+            libraryData.activeLoans.forEach(loan => {
+                const due = new Date(loan.dueDate);
+                const today = new Date(todayStr);
+                const diffTime = today - due;
+                const overdueDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                if(overdueDays > 0) overdueCount++;
+            });
+
+            document.getElementById('stat-overdue-count').innerText = `${overdueCount} เล่ม`;
+            document.getElementById('stat-total-books').innerText = `${libraryData.books.length} เล่ม`;
+            
+            const availableBooksCount = libraryData.books.filter(b => b.status === 'พร้อมใช้งาน').length;
+            document.getElementById('stat-available-books').innerText = `พร้อมให้ยืม ${availableBooksCount} เล่ม`;
+
+            // Chart Data Customization
+            const customData = libraryData.settings.customStatsHistory || [12, 19, 15, 22, 14, 25, 18];
+            if(customData.length > 0) {
+                customData[customData.length - 1] = Math.max(customData[customData.length - 1], todayReturns);
+            }
+
+            // Chart 1: Return trend
+            const ctx1 = document.getElementById('returnChart');
+            if(ctx1) {
+                if(returnChartInstance) returnChartInstance.destroy();
+                returnChartInstance = new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: ['25 ก.ย.', '26 ก.ย.', '27 ก.ย.', '28 ก.ย.', '29 ก.ย.', '30 ก.ย.', '1 ต.ค.'],
+                        datasets: [{
+                            label: 'จำนวนเล่มที่เวนคืน (เล่ม)',
+                            data: customData,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.35
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+            }
+
+            // Chart 2: Book status ratio
+            const ctx2 = document.getElementById('conditionChart');
+            if(ctx2) {
+                if(conditionChartInstance) conditionChartInstance.destroy();
+                
+                let available = availableBooksCount;
+                let borrowed = libraryData.activeLoans.length;
+                let damaged = libraryData.books.filter(b => b.status === 'ชำรุด/สูญหาย').length;
+
+                conditionChartInstance = new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['พร้อมให้ยืม', 'อยู่ระหว่างยืม', 'ชำรุด/สูญหาย'],
+                        datasets: [{
+                            data: [available, borrowed, damaged],
+                            backgroundColor: ['#10b981', '#6366f1', '#ef4444']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Prompt', size: 11 } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        function getTodayDateStr() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getCurrentTimeStr() {
+            const d = new Date();
+            return d.toTimeString().substring(0, 5);
+        }
+
+        function updateClockDisplay() {
+            const now = new Date();
+            document.getElementById('current-date-display').innerText = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('current-time-display').innerText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-message').innerText = msg;
+
+            if(type === 'error') {
+                icon.className = 'fa-solid fa-circle-xmark text-rose-400 text-base';
+            } else if(type === 'warning') {
+                icon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+            } else {
+                icon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        window.onload = function() {
+            updateHeaderAndSettingsDisplay();
+            updateClockDisplay();
+            setInterval(updateClockDisplay, 30000);
+            renderQuickScanButtons();
+            renderActiveLoansList();
+        };
+    </script>
+</body>
+</html>
